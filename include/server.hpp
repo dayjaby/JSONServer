@@ -15,8 +15,6 @@
 
 using boost::asio::ip::tcp;
 
-class MessageTooLarge {};
-
 class GenericSession
     : public std::enable_shared_from_this<GenericSession>
 {
@@ -28,11 +26,7 @@ public:
 
     void start()
     {
-        try {
-            do_read_header();
-        } catch(MessageTooLarge) {
-            std::cerr << "Message size too large" << std::endl;
-        }
+        do_read_header();
     }
 
     template <class Handler>
@@ -69,7 +63,7 @@ private:
             if (!ec)
             {
               header = in_data_[0] + (in_data_[1] << 8) + (in_data_[2] << 16) + (in_data_[3] << 24);
-              if(header>max_length) throw MessageTooLarge();
+              if(header>max_length) return;
             }
 
             do_read_data();
@@ -86,10 +80,14 @@ private:
 
             if (!ec)
             {
-                in_data_[header+1] = 0;
-                rapidjson::Document d;
-                d.Parse<0>(in_data_);
-                if(read_handler) read_handler(d);
+                try {
+                    in_data_[header+1] = 0;
+                    rapidjson::Document d;
+                    d.Parse<0>(in_data_);
+                    if(read_handler) read_handler(d);
+                } catch(...) {
+                    return;
+                }
             }
             do_read_header();
         });
